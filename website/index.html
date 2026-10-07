@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aqua-Quant</title>
+<meta name="description" content="Aqua-Quant paper terminal. 4-hour bias, 30-minute execution, real chart data, 0.05% risk." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@460;700&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#07141a; --ink:#e7f6f2; --muted:#86a8b2; --aqua:#6ff3d2; --line:#1d4554; --amber:#f0c36a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Outfit,sans-serif; }
+  a { color:var(--aqua); }
+  header, main { width:min(920px, calc(100% - 32px)); margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:center; padding:22px 0; }
+  .mark { font-family:"IBM Plex Mono",monospace; letter-spacing:.22em; font-size:12px; color:var(--aqua); }
+  h1 { font-size:64px; line-height:.92; margin:8px 0 12px; }
+  .sub { color:var(--muted); font-size:18px; max-width:640px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:28px 0; }
+  .card { border:1px solid var(--line); padding:14px 16px; background:#0c1e27; }
+  .card b { display:block; font-family:"IBM Plex Mono",monospace; font-weight:500; color:var(--aqua); margin-bottom:6px; }
+  .btn { display:inline-block; margin-right:8px; padding:12px 14px; border:1px solid #1f8f7a; color:var(--aqua); text-decoration:none; }
+  .warn { color:var(--amber); font-size:14px; }
+  footer { color:var(--muted); padding:28px 0 40px; font-size:13px; }
+  @media (max-width:720px) { h1 { font-size:42px; } .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">AQUA-QUANT</div>
+  <a href="https://github.com/RoninGrk1/aqua-quant">Repository</a>
+</header>
+<main>
+  <p class="mark">STOCKS AND INDICES · PAPER DESK</p>
+  <h1>Four-hour bias.<br>Thirty-minute execution.</h1>
+  <p class="sub">Ten analysis seats. A trade is allowed only when the 4-hour and 30-minute seats agree, at least six seats align, and the confluence score is at least 60%. Size is 0.05% of paper equity.</p>
+  <p>
+    <a class="btn" href="https://github.com/RoninGrk1/aqua-quant">Open the repository</a>
+    <a class="btn" href="https://github.com/RoninGrk1/aqua-quant#run-the-terminal">Run the terminal</a>
+  </p>
+  <div class="grid">
+    <div class="card"><b>Data</b>Yahoo Finance chart API. No key. A failed feed is shown as down, not filled in.</div>
+    <div class="card"><b>Wallet</b>Deposit and withdraw stay in a local paper ledger. This site is not a broker.</div>
+    <div class="card"><b>Session</b>Arm a 4 hour 30 minute scan. At most three open positions. Halt at 1% session loss.</div>
+    <div class="card"><b>Gate</b>60% is the entry filter, not a promise that future trades win 60% of the time.</div>
+  </div>
+  <p class="warn">GitHub Pages can publish this site. It cannot run the terminal. Yahoo blocks browser calls, and the wallet needs the Python server on your machine.</p>
+  <footer>Aqua-Quant · paper research desk · not investment advice</footer>
+</main>
+</body>
+</html>

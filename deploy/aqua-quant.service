@@ -1,0 +1,18 @@
+[Unit]
+Description=Aqua-Quant paper terminal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=REPLACE_WITH_YOUR_USER
+WorkingDirectory=/opt/aqua-quant
+ExecStart=/usr/bin/python3 /opt/aqua-quant/server.py
+Restart=on-failure
+RestartSec=5
+Environment=AQUA_HOST=127.0.0.1
+Environment=AQUA_PORT=8765
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

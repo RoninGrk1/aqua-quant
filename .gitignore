@@ -1,0 +1,6 @@
+data/
+*.sqlite
+*.log
+__pycache__/
+start-service.cmd
+.DS_Store
