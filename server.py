@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "aqua_quant.sqlite"
 STATIC = ROOT / "static"
-HOST = os.environ.get("AQUA_HOST", "0.0.0.0")
+HOST = os.environ.get("AQUA_HOST", "127.0.0.1")
 PORT = int(os.environ.get("AQUA_PORT", "8765"))
 SESSION_SECONDS = 4 * 3600 + 30 * 60
 RISK_PCT = 0.0005  # 0.05%
@@ -72,6 +72,8 @@ def iso(ts: int | None) -> str | None:
 def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -571,11 +573,21 @@ def user_state(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
         "SELECT * FROM trades WHERE user_id = ? AND status = 'closed' ORDER BY closed DESC LIMIT 40",
         (uid,),
     ).fetchall()
+    totals = conn.execute(
+        """
+        SELECT COUNT(*) AS n,
+               COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0) AS w,
+               COALESCE(SUM(pnl), 0) AS r
+        FROM trades WHERE user_id = ? AND status = 'closed'
+        """,
+        (uid,),
+    ).fetchone()
     ledger = conn.execute(
         "SELECT * FROM ledger WHERE user_id = ? ORDER BY id DESC LIMIT 30",
         (uid,),
     ).fetchall()
-    wins = [t for t in closed if (t["pnl"] or 0) > 0]
+    wins = int(totals["w"])
+    closed_n = int(totals["n"])
     return {
         "user": {"id": uid, "email": user["email"], "username": user["username"]},
         "wallet": {
@@ -606,10 +618,10 @@ def user_state(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
             for t in closed
         ],
         "stats": {
-            "closed": len(closed),
-            "wins": len(wins),
-            "win_rate": (len(wins) / len(closed)) if closed else None,
-            "realized": sum(t["pnl"] or 0 for t in closed),
+            "closed": closed_n,
+            "wins": wins,
+            "win_rate": (wins / closed_n) if closed_n else None,
+            "realized": float(totals["r"]),
         },
         "ledger": [
             {"id": r["id"], "kind": r["kind"], "amount": r["amount"], "note": r["note"], "ts": iso(r["ts"])}
@@ -618,28 +630,51 @@ def user_state(conn: sqlite3.Connection, user: sqlite3.Row) -> dict:
     }
 
 
-def close_trade(conn: sqlite3.Connection, trade: sqlite3.Row, price: float, reason: str) -> None:
+def close_trade(conn: sqlite3.Connection, trade: sqlite3.Row, price: float, reason: str) -> bool:
     pnl = mark_trade(trade, price)
-    conn.execute(
-        "UPDATE trades SET status = 'closed', exit_px = ?, pnl = ?, closed = ?, reason = ? WHERE id = ?",
+    cur = conn.execute(
+        """
+        UPDATE trades
+        SET status = 'closed', exit_px = ?, pnl = ?, closed = ?, reason = ?
+        WHERE id = ? AND status = 'open'
+        """,
         (price, pnl, utc_now(), reason, trade["id"]),
     )
+    if cur.rowcount != 1:
+        return False
     conn.execute(
         "INSERT INTO ledger (user_id, kind, amount, note, ts) VALUES (?, 'pnl', ?, ?, ?)",
         (trade["user_id"], pnl, f"{trade['symbol']} {trade['side']} {reason}", utc_now()),
     )
+    return True
+
+
+def bar_after_entry(trade: sqlite3.Row, data: dict) -> tuple[float, float, float]:
+    """Stop checks must not use a candle that started before the fill."""
+    px = float(data["price"])
+    last = data["bars"][-1] if data["bars"] else None
+    if last and int(last["t"]) >= int(trade["opened"]):
+        return px, float(last["h"]), float(last["l"])
+    return px, px, px
 
 
 def manage_open(conn: sqlite3.Connection, user_id: int) -> None:
-    for tr in open_trades(conn, user_id):
+    trades = open_trades(conn, user_id)
+    if not trades:
+        return
+    feeds: dict[str, dict] = {}
+    for tr in trades:
+        if tr["symbol"] in feeds:
+            continue
         try:
-            data = yahoo_chart(tr["symbol"], "30m", "5d")
+            feeds[tr["symbol"]] = yahoo_chart(tr["symbol"], "30m", "5d")
         except Exception:
             continue
-        px = data["price"]
-        last = data["bars"][-1] if data["bars"] else None
-        hi = last["h"] if last else px
-        lo = last["l"] if last else px
+    for tr in trades:
+        data = feeds.get(tr["symbol"])
+        if not data:
+            continue
+        _px, hi, lo = bar_after_entry(tr, data)
         if tr["side"] == "long":
             if lo <= tr["stop"]:
                 close_trade(conn, tr, tr["stop"], "stop")
@@ -724,20 +759,33 @@ def maybe_open(conn: sqlite3.Connection, user_id: int, run_id: int) -> None:
 def scanner_loop() -> None:
     while True:
         time.sleep(SCAN_SECONDS)
+        conn = None
         try:
             with DB_LOCK:
                 conn = connect()
-                runs = conn.execute("SELECT * FROM runs WHERE status = 'running'").fetchall()
-                now = utc_now()
-                for run in runs:
-                    if now >= run["ends"]:
-                        conn.execute("UPDATE runs SET status = 'ended' WHERE id = ?", (run["id"],))
-                        continue
+                runs = [dict(row) for row in conn.execute("SELECT * FROM runs WHERE status = 'running'").fetchall()]
+                conn.close()
+                conn = None
+            now = utc_now()
+            for run in runs:
+                if now >= run["ends"]:
+                    with DB_LOCK:
+                        conn = connect()
+                        conn.execute("UPDATE runs SET status = 'ended' WHERE id = ? AND status = 'running'", (run["id"],))
+                        conn.commit()
+                        conn.close()
+                        conn = None
+                    continue
+                with DB_LOCK:
+                    conn = connect()
                     manage_open(conn, run["user_id"])
                     maybe_open(conn, run["user_id"], run["id"])
-                conn.commit()
-                conn.close()
+                    conn.commit()
+                    conn.close()
+                    conn = None
         except Exception:
+            if conn is not None:
+                conn.close()
             continue
 
 
@@ -894,7 +942,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             uid = user["id"]
             if path == "/api/wallet/deposit":
-                amount = float(body.get("amount") or 0)
+                try:
+                    amount = float(body.get("amount") or 0)
+                except (TypeError, ValueError):
+                    conn.close()
+                    self._send(400, {"error": "Deposit amount must be a number"})
+                    return
                 if amount <= 0 or amount > 5_000_000:
                     conn.close()
                     self._send(400, {"error": "Deposit must be between 0 and 5,000,000 paper USD"})
@@ -909,7 +962,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, state)
                 return
             if path == "/api/wallet/withdraw":
-                amount = float(body.get("amount") or 0)
+                try:
+                    amount = float(body.get("amount") or 0)
+                except (TypeError, ValueError):
+                    conn.close()
+                    self._send(400, {"error": "Withdraw amount must be a number"})
+                    return
                 free = cash_of(conn, uid) - reserved_margin(conn, uid)
                 if amount <= 0 or amount > free + 1e-9:
                     conn.close()
@@ -931,15 +989,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(409, {"error": "A 4h 30m session is already running"})
                     return
                 manage_open(conn, uid)
-                cash = cash_of(conn, uid)
-                if cash < 1000:
+                conn.commit()
+                equity = cash_of(conn, uid)
+                for tr in open_trades(conn, uid):
+                    px = latest_price(tr["symbol"])
+                    if px:
+                        equity += mark_trade(tr, px)
+                if equity < 1000:
                     conn.close()
                     self._send(400, {"error": "Deposit at least 1,000 paper USD before arming the desk"})
                     return
                 now = utc_now()
                 conn.execute(
                     "INSERT INTO runs (user_id, started, ends, status, start_equity) VALUES (?, ?, ?, 'running', ?)",
-                    (uid, now, now + SESSION_SECONDS, cash),
+                    (uid, now, now + SESSION_SECONDS, equity),
                 )
                 conn.commit()
                 state = user_state(conn, user)

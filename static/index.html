@@ -200,6 +200,9 @@ const $ = (id) => document.getElementById(id);
 let selected = "^GSPC";
 let state = null;
 
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
 function money(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -253,8 +256,9 @@ $("armBtn").onclick = async () => {
   catch (err) { $("deskErr").textContent = err.message; }
 };
 $("stopBtn").onclick = async () => {
-  state = await api("/api/session/stop", { method: "POST" });
-  paintState();
+  $("deskErr").textContent = "";
+  try { state = await api("/api/session/stop", { method: "POST" }); paintState(); }
+  catch (err) { $("deskErr").textContent = err.message; }
 };
 async function boot() {
   showApp(true);
@@ -277,9 +281,9 @@ function paintState() {
     const s = state.session.remaining % 60;
     $("clock").textContent = `ARMED ${m}m ${String(s).padStart(2, "0")}s`;
   } else $("clock").textContent = "SESSION OFF";
-  $("positions").innerHTML = (state.positions || []).map(p => `<tr><td>${p.symbol}</td><td>${p.side}</td><td>${p.qty.toFixed(4)}</td><td>${money(p.entry)}</td><td>${money(p.stop)}</td><td>${money(p.target)}</td><td class="${(p.upnl||0)>=0?"up":"down"}">${money(p.upnl)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">No open paper positions</td></tr>`;
-  $("fills").innerHTML = (state.trades || []).map(t => `<tr><td>${t.closed || ""}</td><td>${t.symbol}</td><td>${t.side}</td><td class="${(t.pnl||0)>=0?"up":"down"}">${money(t.pnl)}</td><td>${(t.p_win*100).toFixed(1)}%</td><td>${t.reason || ""}</td></tr>`).join("") || `<tr><td colspan="6" class="muted">No closed fills</td></tr>`;
-  $("ledger").innerHTML = (state.ledger || []).map(r => `<div class="card"><div class="sym">${r.kind} ${money(r.amount)}</div><div class="muted">${r.ts} · ${r.note || ""}</div></div>`).join("") || `<div class="muted">No ledger entries</div>`;
+  $("positions").innerHTML = (state.positions || []).map(p => `<tr><td>${esc(p.symbol)}</td><td>${esc(p.side)}</td><td>${p.qty.toFixed(4)}</td><td>${money(p.entry)}</td><td>${money(p.stop)}</td><td>${money(p.target)}</td><td class="${(p.upnl||0)>=0?"up":"down"}">${money(p.upnl)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">No open paper positions</td></tr>`;
+  $("fills").innerHTML = (state.trades || []).map(t => `<tr><td>${esc(t.closed || "")}</td><td>${esc(t.symbol)}</td><td>${esc(t.side)}</td><td class="${(t.pnl||0)>=0?"up":"down"}">${money(t.pnl)}</td><td>${((t.p_win||0)*100).toFixed(1)}%</td><td>${esc(t.reason || "")}</td></tr>`).join("") || `<tr><td colspan="6" class="muted">No closed fills</td></tr>`;
+  $("ledger").innerHTML = (state.ledger || []).map(r => `<div class="card"><div class="sym">${esc(r.kind)} ${money(r.amount)}</div><div class="muted">${esc(r.ts)} · ${esc(r.note || "")}</div></div>`).join("") || `<div class="muted">No ledger entries</div>`;
 }
 async function loadBoard() {
   try {
@@ -288,9 +292,9 @@ async function loadBoard() {
     $("board").innerHTML = data.quotes.map(q => {
       const cls = (q.change_pct || 0) >= 0 ? "up" : "down";
       const px = q.price === null ? "FEED DOWN" : money(q.price);
-      return `<div class="quote ${q.symbol === selected ? "active" : ""}" data-symbol="${q.symbol}">
-        <div class="sym">${q.symbol}</div><div class="px ${q.price===null?"":cls}">${px}</div>
-        <div class="muted">${q.name}</div><div class="px muted">${q.change_pct===null?"—":pct(q.change_pct)}</div>
+      return `<div class="quote ${q.symbol === selected ? "active" : ""}" data-symbol="${esc(q.symbol)}">
+        <div class="sym">${esc(q.symbol)}</div><div class="px ${q.price===null?"":cls}">${px}</div>
+        <div class="muted">${esc(q.name)}</div><div class="px muted">${q.change_pct===null?"—":pct(q.change_pct)}</div>
       </div>`;
     }).join("");
     document.querySelectorAll(".quote").forEach(el => el.onclick = () => { selected = el.dataset.symbol; loadSymbol(); loadBoard(); });
@@ -301,7 +305,13 @@ async function loadBoard() {
 function draw(bars) {
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
+  const cssW = canvas.clientWidth || 900;
+  const cssH = 280;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * ratio);
+  canvas.height = Math.round(cssH * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const w = cssW, h = cssH;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#081820";
   ctx.fillRect(0, 0, w, h);
@@ -332,9 +342,9 @@ async function loadSymbol() {
     $("chartTitle").textContent = `30m · ${view.symbol} · ${money(view.price)} ${view.currency} · ${view.source}`;
     draw(view.bars_30m);
     $("agents").innerHTML = view.agents.map(a => `<div class="agent">
-      <div class="sym">${a.name} · ${a.seat}</div>
-      <div class="${a.bias === "long" ? "up" : a.bias === "short" ? "down" : "muted"}">${a.bias.toUpperCase()} · ${(a.score*100).toFixed(0)}</div>
-      <div class="muted">${a.note}</div>
+      <div class="sym">${esc(a.name)} · ${esc(a.seat)}</div>
+      <div class="${a.bias === "long" ? "up" : a.bias === "short" ? "down" : "muted"}">${esc(a.bias).toUpperCase()} · ${(a.score*100).toFixed(0)}</div>
+      <div class="muted">${esc(a.note)}</div>
     </div>`).join("") + `<div class="card"><div class="sym">GATE ${view.cleared ? "CLEAR" : "BLOCKED"}</div><div class="muted">Confluence ${(view.p_win*100).toFixed(1)}% · aligned ${view.aligned}/9 · ATR stop ${view.stop_dist ? view.stop_dist.toFixed(2) : "—"}</div></div>`;
   } catch (err) {
     $("agents").innerHTML = `<div class="err">${err.message}</div>`;
