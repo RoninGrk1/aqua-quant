@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aqua-Quant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@420;560;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #07141a;
+    --bg2: #0c1e27;
+    --bg3: #102833;
+    --line: #1d4554;
+    --ink: #e7f6f2;
+    --muted: #86a8b2;
+    --aqua: #6ff3d2;
+    --aqua2: #1f8f7a;
+    --amber: #f0c36a;
+    --loss: #ff7384;
+    --gain: #6ff3d2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: Outfit, sans-serif; }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  .gate { min-height: 100%; display: grid; grid-template-columns: 1.1fr 0.9fr; }
+  .brand {
+    padding: 48px 56px;
+    background:
+      radial-gradient(900px 480px at 10% 10%, rgba(111,243,210,.16), transparent 60%),
+      linear-gradient(160deg, #082029, #07141a 55%);
+    border-right: 1px solid var(--line);
+  }
+  .mark { font-family: "IBM Plex Mono", monospace; letter-spacing: .28em; color: var(--aqua); font-size: 12px; }
+  h1 { font-size: 64px; line-height: .92; margin: 18px 0 12px; font-weight: 700; }
+  .sub { max-width: 520px; color: var(--muted); font-size: 18px; line-height: 1.45; }
+  .facts { margin-top: 36px; display: grid; gap: 10px; max-width: 520px; }
+  .fact { border: 1px solid var(--line); background: rgba(8,24,32,.7); padding: 12px 14px; display: flex; justify-content: space-between; gap: 12px; }
+  .fact b { font-family: "IBM Plex Mono", monospace; font-weight: 500; color: var(--aqua); }
+  .auth { display: flex; align-items: center; justify-content: center; padding: 32px; }
+  form { width: min(420px, 100%); }
+  label { display: block; margin: 14px 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .04em; }
+  input {
+    width: 100%; background: #081920; color: var(--ink); border: 1px solid var(--line);
+    padding: 12px 12px; outline: none;
+  }
+  input:focus { border-color: var(--aqua2); }
+  .row { display: flex; gap: 8px; margin-top: 18px; }
+  .btn {
+    border: 1px solid var(--aqua2); background: #123f38; color: var(--aqua);
+    padding: 12px 16px; letter-spacing: .04em;
+  }
+  .btn.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .err { color: var(--loss); min-height: 22px; margin-top: 10px; font-size: 14px; }
+  .app { display: none; height: 100%; grid-template-rows: 64px 1fr; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px; border-bottom: 1px solid var(--line); background: #081920;
+  }
+  .logo { font-weight: 700; letter-spacing: .08em; }
+  .logo span { color: var(--aqua); }
+  .meta { display: flex; gap: 18px; align-items: center; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .live { color: var(--aqua); }
+  main { display: grid; grid-template-columns: 300px 1fr 340px; min-height: 0; }
+  aside, section { min-height: 0; overflow: auto; }
+  aside { border-right: 1px solid var(--line); }
+  .right { border-left: 1px solid var(--line); }
+  .pane { padding: 14px; }
+  h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .14em; color: var(--muted); font-weight: 560; }
+  .quote, .agent, .card {
+    border: 1px solid var(--line); background: var(--bg2); padding: 10px; margin-bottom: 8px;
+  }
+  .quote { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; cursor: pointer; }
+  .quote.active { border-color: var(--aqua2); }
+  .sym { font-family: "IBM Plex Mono", monospace; }
+  .px { text-align: right; font-family: "IBM Plex Mono", monospace; }
+  .up { color: var(--gain); }
+  .down { color: var(--loss); }
+  .muted { color: var(--muted); font-size: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .kpi { background: var(--bg2); border: 1px solid var(--line); padding: 10px; }
+  .kpi b { display: block; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 18px; font-weight: 500; }
+  canvas { width: 100%; height: 280px; background: #081820; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #163542; font-family: "IBM Plex Mono", monospace; }
+  th { color: var(--muted); font-weight: 500; }
+  .warn { color: var(--amber); font-size: 12px; line-height: 1.4; }
+  .wallet-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .wallet-actions input { width: 120px; }
+  .clock { color: var(--amber); }
+  @media (max-width: 1100px) {
+    .gate { grid-template-columns: 1fr; }
+    main { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 42px; }
+  }
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div class="brand">
+    <div class="mark">TERMINAL · STOCKS & INDICES</div>
+    <h1>Aqua-Quant</h1>
+    <p class="sub">One desk. Ten analysis seats. 4-hour bias, 30-minute execution. Trades are paper, prices are not.</p>
+    <div class="facts">
+      <div class="fact"><span>Data</span><b>Yahoo chart API</b></div>
+      <div class="fact"><span>Risk / trade</span><b>0.05% of equity</b></div>
+      <div class="fact"><span>Safeguard</span><b>confluence ≥ 60%</b></div>
+      <div class="fact"><span>Session</span><b>4h 30m auto scan</b></div>
+      <div class="fact"><span>Wallet</span><b>paper deposit / withdraw</b></div>
+    </div>
+  </div>
+  <div class="auth">
+    <form id="authForm">
+      <div class="mark">SIGN IN</div>
+      <label>Email</label>
+      <input id="email" type="email" autocomplete="username" required />
+      <label>Username</label>
+      <input id="username" autocomplete="nickname" required />
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <div class="row">
+        <button class="btn" type="submit">Enter terminal</button>
+        <button class="btn secondary" id="registerBtn" type="button">Create account</button>
+      </div>
+      <div class="err" id="authErr"></div>
+      <p class="warn">Paper wallet only. Deposits do not leave this terminal and withdrawals are not bank transfers. No order is sent to a broker.</p>
+    </form>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <header>
+    <div class="logo">AQUA<span>-QUANT</span></div>
+    <div class="meta">
+      <span id="who"></span>
+      <span class="live" id="feed">FEED …</span>
+      <span class="clock" id="clock">SESSION OFF</span>
+      <button class="btn secondary" id="logoutBtn" type="button">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <aside class="pane">
+      <h2>BOARD</h2>
+      <div id="board"></div>
+    </aside>
+    <section class="pane">
+      <div class="kpis">
+        <div class="kpi">Equity<b id="equity">—</b></div>
+        <div class="kpi">Cash<b id="cash">—</b></div>
+        <div class="kpi">Open risk<b id="openRisk">—</b></div>
+        <div class="kpi">Closed win rate<b id="wr">—</b></div>
+      </div>
+      <h2 id="chartTitle">30m · SELECT A SYMBOL</h2>
+      <canvas id="chart" width="900" height="280"></canvas>
+      <p class="warn" id="gateNote">Lock seat blocks a trade unless 4h and 30m agree, at least 6 of 9 seats align, and the confluence score is at least 60%. That score is a filter, not a guaranteed win rate.</p>
+      <h2>OPEN PAPER POSITIONS</h2>
+      <table>
+        <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th><th>U-PnL</th></tr></thead>
+        <tbody id="positions"></tbody>
+      </table>
+      <h2 style="margin-top:16px">FILLS</h2>
+      <table>
+        <thead><tr><th>When</th><th>Symbol</th><th>Side</th><th>PnL</th><th>Gate</th><th>Exit</th></tr></thead>
+        <tbody id="fills"></tbody>
+      </table>
+    </section>
+    <aside class="pane right">
+      <h2>WALLET · PAPER USD</h2>
+      <div class="card">
+        <div class="muted">Withdrawable</div>
+        <div class="sym" id="withdrawable">0.00</div>
+        <div class="wallet-actions">
+          <input id="amount" type="number" min="1" step="100" value="10000" />
+          <button class="btn" id="depBtn" type="button">Deposit</button>
+          <button class="btn secondary" id="wdBtn" type="button">Withdraw</button>
+        </div>
+        <p class="warn">Funding stays inside this ledger. It is not a brokerage deposit.</p>
+      </div>
+      <h2>4H 30M DESK</h2>
+      <div class="card">
+        <div class="muted">Auto scan every 40s while the session is armed. Max 3 positions. Session loss halt at −1%.</div>
+        <div class="row">
+          <button class="btn" id="armBtn" type="button">Arm 4h 30m</button>
+          <button class="btn secondary" id="stopBtn" type="button">Stop</button>
+        </div>
+        <div class="err" id="deskErr"></div>
+      </div>
+      <h2>AGENT DESK</h2>
+      <div id="agents"></div>
+      <h2>LEDGER</h2>
+      <div id="ledger"></div>
+    </aside>
+  </main>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let selected = "^GSPC";
+let state = null;
+
+function money(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function pct(n) {
+  if (n === null || n === undefined) return "—";
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+}
+async function api(path, opts) {
+  const res = await fetch(path, { credentials: "same-origin", ...opts });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+function showApp(on) {
+  $("gate").style.display = on ? "none" : "grid";
+  $("app").style.display = on ? "grid" : "none";
+}
+$("authForm").onsubmit = async (e) => {
+  e.preventDefault();
+  $("authErr").textContent = "";
+  try {
+    await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creds()) });
+    await boot();
+  } catch (err) { $("authErr").textContent = err.message; }
+};
+$("registerBtn").onclick = async () => {
+  $("authErr").textContent = "";
+  try {
+    await api("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creds()) });
+    await api("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creds()) });
+    await boot();
+  } catch (err) { $("authErr").textContent = err.message; }
+};
+function creds() {
+  return { email: $("email").value.trim(), username: $("username").value.trim(), password: $("password").value };
+}
+$("logoutBtn").onclick = async () => { await api("/api/logout", { method: "POST" }); showApp(false); };
+$("depBtn").onclick = () => wallet("deposit");
+$("wdBtn").onclick = () => wallet("withdraw");
+async function wallet(kind) {
+  $("deskErr").textContent = "";
+  try {
+    state = await api(`/api/wallet/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number($("amount").value) }) });
+    paintState();
+  } catch (err) { $("deskErr").textContent = err.message; }
+}
+$("armBtn").onclick = async () => {
+  $("deskErr").textContent = "";
+  try { state = await api("/api/session/start", { method: "POST" }); paintState(); }
+  catch (err) { $("deskErr").textContent = err.message; }
+};
+$("stopBtn").onclick = async () => {
+  state = await api("/api/session/stop", { method: "POST" });
+  paintState();
+};
+async function boot() {
+  showApp(true);
+  state = await api("/api/state");
+  paintState();
+  loadBoard();
+  loadSymbol();
+}
+function paintState() {
+  if (!state) return;
+  $("who").textContent = `${state.user.username} · ${state.user.email}`;
+  $("equity").textContent = money(state.wallet.equity);
+  $("cash").textContent = money(state.wallet.cash);
+  $("withdrawable").textContent = money(state.wallet.withdrawable);
+  const risk = (state.positions || []).reduce((s, p) => s + (p.risk_cash || 0), 0);
+  $("openRisk").textContent = money(risk);
+  $("wr").textContent = state.stats.win_rate === null ? "—" : `${(state.stats.win_rate * 100).toFixed(1)}%`;
+  if (state.session) {
+    const m = Math.floor(state.session.remaining / 60);
+    const s = state.session.remaining % 60;
+    $("clock").textContent = `ARMED ${m}m ${String(s).padStart(2, "0")}s`;
+  } else $("clock").textContent = "SESSION OFF";
+  $("positions").innerHTML = (state.positions || []).map(p => `<tr><td>${p.symbol}</td><td>${p.side}</td><td>${p.qty.toFixed(4)}</td><td>${money(p.entry)}</td><td>${money(p.stop)}</td><td>${money(p.target)}</td><td class="${(p.upnl||0)>=0?"up":"down"}">${money(p.upnl)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">No open paper positions</td></tr>`;
+  $("fills").innerHTML = (state.trades || []).map(t => `<tr><td>${t.closed || ""}</td><td>${t.symbol}</td><td>${t.side}</td><td class="${(t.pnl||0)>=0?"up":"down"}">${money(t.pnl)}</td><td>${(t.p_win*100).toFixed(1)}%</td><td>${t.reason || ""}</td></tr>`).join("") || `<tr><td colspan="6" class="muted">No closed fills</td></tr>`;
+  $("ledger").innerHTML = (state.ledger || []).map(r => `<div class="card"><div class="sym">${r.kind} ${money(r.amount)}</div><div class="muted">${r.ts} · ${r.note || ""}</div></div>`).join("") || `<div class="muted">No ledger entries</div>`;
+}
+async function loadBoard() {
+  try {
+    const data = await api("/api/market");
+    $("feed").textContent = "FEED LIVE";
+    $("board").innerHTML = data.quotes.map(q => {
+      const cls = (q.change_pct || 0) >= 0 ? "up" : "down";
+      const px = q.price === null ? "FEED DOWN" : money(q.price);
+      return `<div class="quote ${q.symbol === selected ? "active" : ""}" data-symbol="${q.symbol}">
+        <div class="sym">${q.symbol}</div><div class="px ${q.price===null?"":cls}">${px}</div>
+        <div class="muted">${q.name}</div><div class="px muted">${q.change_pct===null?"—":pct(q.change_pct)}</div>
+      </div>`;
+    }).join("");
+    document.querySelectorAll(".quote").forEach(el => el.onclick = () => { selected = el.dataset.symbol; loadSymbol(); loadBoard(); });
+  } catch (err) {
+    $("feed").textContent = "FEED ERROR";
+  }
+}
+function draw(bars) {
+  const canvas = $("chart");
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#081820";
+  ctx.fillRect(0, 0, w, h);
+  if (!bars || !bars.length) return;
+  const highs = bars.map(b => b.h), lows = bars.map(b => b.l);
+  const max = Math.max(...highs), min = Math.min(...lows);
+  const span = max - min || 1;
+  const slot = w / bars.length;
+  bars.forEach((b, i) => {
+    const x = i * slot + slot / 2;
+    const y = (v) => h - ((v - min) / span) * (h - 16) - 8;
+    ctx.strokeStyle = b.c >= b.o ? "#6ff3d2" : "#ff7384";
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(x, y(b.h));
+    ctx.lineTo(x, y(b.l));
+    ctx.stroke();
+    const top = y(Math.max(b.o, b.c));
+    const bot = y(Math.min(b.o, b.c));
+    ctx.fillRect(x - Math.max(1, slot * 0.3), top, Math.max(2, slot * 0.6), Math.max(1, bot - top));
+  });
+}
+async function loadSymbol() {
+  $("chartTitle").textContent = `30m · ${selected}`;
+  $("agents").innerHTML = `<div class="muted">Reading real candles…</div>`;
+  try {
+    const view = await api("/api/analyse/" + encodeURIComponent(selected));
+    $("chartTitle").textContent = `30m · ${view.symbol} · ${money(view.price)} ${view.currency} · ${view.source}`;
+    draw(view.bars_30m);
+    $("agents").innerHTML = view.agents.map(a => `<div class="agent">
+      <div class="sym">${a.name} · ${a.seat}</div>
+      <div class="${a.bias === "long" ? "up" : a.bias === "short" ? "down" : "muted"}">${a.bias.toUpperCase()} · ${(a.score*100).toFixed(0)}</div>
+      <div class="muted">${a.note}</div>
+    </div>`).join("") + `<div class="card"><div class="sym">GATE ${view.cleared ? "CLEAR" : "BLOCKED"}</div><div class="muted">Confluence ${(view.p_win*100).toFixed(1)}% · aligned ${view.aligned}/9 · ATR stop ${view.stop_dist ? view.stop_dist.toFixed(2) : "—"}</div></div>`;
+  } catch (err) {
+    $("agents").innerHTML = `<div class="err">${err.message}</div>`;
+  }
+}
+async function tick() {
+  if ($("app").style.display !== "grid") return;
+  try { state = await api("/api/state"); paintState(); } catch (_) { showApp(false); }
+}
+setInterval(tick, 15000);
+setInterval(() => { if ($("app").style.display === "grid") loadBoard(); }, 30000);
+api("/api/state").then(s => { state = s; boot(); }).catch(() => showApp(false));
+</script>
+</body>
+</html>
